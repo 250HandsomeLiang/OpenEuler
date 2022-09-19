@@ -1,6 +1,5 @@
 #include "kernel/types.h"
 #include "user.h"
-
 int main(int argc,char* argv[]){
     if(argc != 2){
         printf("Sleep needs one argument!\n"); //检查参数数量是否正确
