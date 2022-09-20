@@ -62,7 +62,6 @@ find(char *path,char *dest)
         printf("%s/%s\n",path,dest);
       }else if(st.type==T_DIR&&strcmp(buf_name,".")&&strcmp(buf_name,"..")){
             //file name
-            printf("path:%s\n",buf);
             char path_name[512];
             strcpy(path_name,buf);
             find(path_name,dest);
