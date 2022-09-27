@@ -12,6 +12,7 @@
 #include "file.h"
 #include "stat.h"
 #include "proc.h"
+#include "sysinfo.h"
 
 struct devsw devsw[NDEV];
 struct {
@@ -180,3 +181,17 @@ filewrite(struct file *f, uint64 addr, int n)
   return ret;
 }
 
+// Get metadata about xv6 kernel.
+// addr is a user virtual address, pointing to a struct stat.
+int
+sysinfo_func(uint64 addr)
+{
+  struct proc *p = myproc();
+  struct sysinfo info;
+  info.freemem=freePage();
+  info.nproc=freeProc();
+  info.freefd=freeFile();
+  if(copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0)
+    return -1;
+  return 0;
+}

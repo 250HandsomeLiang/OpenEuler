@@ -150,6 +150,7 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  p->mask =0;
 }
 
 // Create a user page table for a given process,
@@ -277,6 +278,7 @@ fork(void)
 
   np->parent = p;
 
+  np->mask=p->mask;//inherit parent mask
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
@@ -692,4 +694,47 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+//mark the definite syscall
+void
+trace(int mask)
+{
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  p->mask=mask;
+  release(&p->lock);
+}
+
+//free proc number
+uint64
+freeProc(void){
+  uint64 count=0;
+  
+  struct proc *p;
+
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state == UNUSED) {
+        count++;
+    } 
+    release(&p->lock);
+  }
+  return count;
+}
+
+//free fd number
+uint64
+freeFile(void){
+  uint64 count=0;
+  int fd;
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  for(fd = 0; fd < NOFILE; fd++){
+    if(p->ofile[fd] == 0){
+      count++;
+    }
+  }
+  release(&p->lock);
+  return count;
 }

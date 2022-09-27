@@ -6,6 +6,7 @@
 int
 main(int argc, char *argv[])
 {
+  //trace id func para1 para2
   int i;
   char *nargv[MAXARG];
 
@@ -15,6 +16,7 @@ main(int argc, char *argv[])
   }
 
   if (trace(atoi(argv[1])) < 0) {
+    //if error then execute following code
     fprintf(2, "%s: trace failed\n", argv[0]);
     exit(1);
   }
