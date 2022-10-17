@@ -79,12 +79,25 @@ kalloc(void)
   push_off();
   acquire(&kmems[cpuid()].lock);
   r = kmems[cpuid()].freelist;
+  int flag=0;
   if(r)
     kmems[cpuid()].freelist = r->next;
   else {
     int id=cpuid();
-    for(int i=0;i<NCPU;i++){
-      if(i!=id&&kmems[i].freelist){
+    for(int i=id+1;i<NCPU;i++){
+        acquire(&kmems[i].lock);
+        if(kmems[i].freelist){
+          r=kmems[i].freelist;
+          kmems[i].freelist=r->next;
+          release(&kmems[i].lock);
+          flag=1;
+          break;
+        }else{
+          release(&kmems[i].lock);
+        }
+    }
+    if(flag==0){
+      for(int i=0;i<id;i++){
         acquire(&kmems[i].lock);
         if(kmems[i].freelist){
           r=kmems[i].freelist;
