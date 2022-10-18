@@ -200,7 +200,7 @@ bunpin(struct buf *b) {
   b->refcnt--;
   release(&bcache.lock[index]);
 }
-// move b to bcache.head[i]
+// move free buffer to bcache.head[i]
 void moveB(int index,struct buf *b )
 {
     b->next->prev = b->prev;
