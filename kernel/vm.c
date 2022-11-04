@@ -10,17 +10,18 @@
  * the kernel's page table.
  */
 pagetable_t kernel_pagetable;
-
 extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
 
+// vmprint format
+char format[3][12]={"||","|| ||","|| || ||"};
 /*
  * create a direct-map page table for the kernel.
  */
 void
 kvminit()
-{
+{ 
   kernel_pagetable = (pagetable_t) kalloc();
   memset(kernel_pagetable, 0, PGSIZE);
 
@@ -449,4 +450,41 @@ test_pagetable()
   uint64 satp = r_satp();
   uint64 gsatp = MAKE_SATP(kernel_pagetable);
   return satp != gsatp;
+}
+
+//print the page information
+void vmprint(pagetable_t pagetable){
+    // there are 2^9 = 512 PTEs in a page table.
+    //遍历一个页表
+  printf("page table %p\n",pagetable);
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
+      // this PTE points to a lower-level page table.
+      //when the page is not the leaf page
+      uint64 child = PTE2PA(pte);
+      printf("%s%d: pte %p pa %p\n",format[0],i,(pte_t*)pte,(pagetable_t)child);
+      dfsPage((pagetable_t)child,1);  
+    } else if(pte & PTE_V){
+      uint64 child = PTE2PA(pte);
+      //when arrive at leaf
+      printf("%s%d: pte %p pa %p\n",format[0],i,(pte_t*)pte,(pagetable_t)child);
+    }
+  }
+}
+void dfsPage(pagetable_t pagetable,int count){
+    for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
+      // this PTE points to a lower-level page table.
+      //when the page is not the leaf page
+      uint64 child = PTE2PA(pte);
+      printf("%s%d: pte %p pa %p\n",format[count],i,(pte_t*)pte,(pagetable_t)child);
+      dfsPage((pagetable_t)child,count+1);  
+    } else if(pte & PTE_V){
+      uint64 child = PTE2PA(pte);
+      //when arrive at leaf
+      printf("%s%d: pte %p pa %p\n",format[count],i,(pte_t*)pte,(pagetable_t)child);
+    }
+  }
 }
