@@ -40,6 +40,7 @@ procinit(void)
       uint64 va = KSTACK((int) (p - proc));
       kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
       p->kstack = va;
+      p->kstack_pa=(uint64)pa;
   }
   kvminithart();
 }
@@ -113,6 +114,10 @@ found:
     return 0;
   }
 
+  //Allocate a kernel page table
+  p->k_pagetable=kvminit_new();
+  kvmmap_new(p->kstack, (uint64)p->kstack_pa, PGSIZE, PTE_R | PTE_W,p->k_pagetable);
+  
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -141,6 +146,10 @@ freeproc(struct proc *p)
   p->trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
+  //clear kernel page
+  if(p->k_pagetable)
+    freekerneltable(p->k_pagetable);
+  p->k_pagetable=0;
   p->pagetable = 0;
   p->sz = 0;
   p->pid = 0;
@@ -473,8 +482,12 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+        //set independent process kernel table
+        w_satp(MAKE_SATP(p->k_pagetable));
+        sfence_vma();
         swtch(&c->context, &p->context);
-
+        //set global kernel table
+        kvminithart();
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0; // cpu dosen't run any process now

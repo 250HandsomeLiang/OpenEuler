@@ -159,9 +159,11 @@ int             uartgetc(void);
 
 // vm.c
 void            kvminit(void);
+pagetable_t     kvminit_new(void);
 void            kvminithart(void);
 uint64          kvmpa(uint64);
 void            kvmmap(uint64, uint64, uint64, int);
+void            kvmmap_new(uint64, uint64, uint64, int,pagetable_t);          
 int             mappages(pagetable_t, uint64, uint64, uint64, int);
 pagetable_t     uvmcreate(void);
 void            uvminit(pagetable_t, uchar *, uint);
@@ -181,6 +183,7 @@ int             copyinstr(pagetable_t, char *, uint64, uint64);
 int             test_pagetable();
 void            vmprint(pagetable_t pagetable);            
 void            dfsPage(pagetable_t pagetable,int count);
+void            freekerneltable(pagetable_t pagetable);
 // plic.c
 void            plicinit(void);
 void            plicinithart(void);

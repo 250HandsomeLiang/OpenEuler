@@ -5,6 +5,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -41,6 +42,7 @@ kvminit()
   kvmmap(KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
 
   // map kernel data and the physical RAM we'll make use of.
+  //etext mean kernel data
   kvmmap((uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
 
   // map the trampoline for trap entry/exit to
@@ -69,6 +71,7 @@ kvminithart()
 //   21..29 -- 9 bits of level-1 index.
 //   12..20 -- 9 bits of level-0 index.
 //    0..11 -- 12 bits of byte offset within the page.
+//to create a multilevel pagetable
 pte_t *
 walk(pagetable_t pagetable, uint64 va, int alloc)
 {
@@ -115,6 +118,7 @@ walkaddr(pagetable_t pagetable, uint64 va)
 // add a mapping to the kernel page table.
 // only used when booting.
 // does not flush TLB or enable paging.
+//va->pa
 void
 kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
 {
@@ -487,4 +491,61 @@ void dfsPage(pagetable_t pagetable,int count){
       printf("%s%d: pte %p pa %p\n",format[count],i,(pte_t*)pte,(pagetable_t)child);
     }
   }
+}
+// create pte for each kernel table
+void
+kvmmap_new(uint64 va, uint64 pa, uint64 sz, int perm,pagetable_t k_pagetable)
+{
+  if(mappages(k_pagetable, va, sz, pa, perm) != 0)
+    panic("kvmmap_new");
+}
+//create a kernel table for each process
+pagetable_t
+kvminit_new()
+{ 
+  pagetable_t k_pagetable;
+  k_pagetable = (pagetable_t) kalloc();
+  memset(k_pagetable, 0, PGSIZE);
+
+  // uart registers
+  kvmmap_new(UART0, UART0, PGSIZE, PTE_R | PTE_W,k_pagetable);
+
+  // virtio mmio disk interface
+  kvmmap_new(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W,k_pagetable);
+
+  // PLIC
+  kvmmap_new(PLIC, PLIC, 0x400000, PTE_R | PTE_W,k_pagetable);
+
+  // map kernel text executable and read-only.
+  kvmmap_new(KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X,k_pagetable);
+
+  // map kernel data and the physical RAM we'll make use of.
+  //etext mean kernel data
+  kvmmap_new((uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W,k_pagetable);
+
+  // map the trampoline for trap entry/exit to
+  // the highest virtual address in the kernel.
+  kvmmap_new(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X,k_pagetable);
+  return k_pagetable;
+}
+
+// free kernel page-table pages.
+void
+freekerneltable(pagetable_t pagetable)
+{
+  // there are 2^9 = 512 PTEs in a page table.
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
+      //free L2,L1 table 
+      // this PTE points to a lower-level page table.
+      uint64 child = PTE2PA(pte);
+      freekerneltable((pagetable_t)child);
+      pagetable[i] = 0;  
+    } else if(pte & PTE_V){
+      //free L0 table
+      pagetable[i]=0;
+    }
+  }
+  kfree((void*)pagetable);
 }
