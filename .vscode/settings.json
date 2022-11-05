@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "user.h": "c",
-        "spinlock.h": "c"
+        "spinlock.h": "c",
+        "fs.h": "c"
     }
 }

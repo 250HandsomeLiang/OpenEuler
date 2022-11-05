@@ -184,6 +184,9 @@ int             test_pagetable();
 void            vmprint(pagetable_t pagetable);            
 void            dfsPage(pagetable_t pagetable,int count);
 void            freekerneltable(pagetable_t pagetable);
+pte_t           walk_new(pagetable_t pagetable, uint64 va, int alloc);
+pte_t *         getL1pte(pagetable_t pagetable, uint64 va, int alloc);
+void            mergetable(pagetable_t k_pagetable,pagetable_t u_pagetable);
 // plic.c
 void            plicinit(void);
 void            plicinithart(void);

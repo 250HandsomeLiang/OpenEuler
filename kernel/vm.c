@@ -5,7 +5,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
-
+#define MAX_UESE 0x0c000000L
 /*
  * the kernel's page table.
  */
@@ -547,4 +547,80 @@ freekerneltable(pagetable_t pagetable)
     }
   }
   kfree((void*)pagetable);
+}
+
+// Return the address of the PTE in page table pagetable
+// that corresponds to virtual address va.  If alloc!=0,
+// create any required page-table pages.
+//
+// The risc-v Sv39 scheme has three levels of page-table
+// pages. A page-table page contains 512 64-bit PTEs.
+// A 64-bit virtual address is split into five fields:
+//   39..63 -- must be zero.
+//   30..38 -- 9 bits of level-2 index.
+//   21..29 -- 9 bits of level-1 index.
+//   12..20 -- 9 bits of level-0 index.
+//    0..11 -- 12 bits of byte offset within the page.
+//return L0 pagetable addr
+pte_t 
+walk_new(pagetable_t pagetable, uint64 va, int alloc)
+{
+  if(va >= MAX_UESE)
+    panic("walk_new");
+
+  for(int level = 2; level > 1; level--) {
+    pte_t *pte = &pagetable[PX(level, va)];
+    if(*pte & PTE_V) {
+      pagetable = (pagetable_t)PTE2PA(*pte);
+    } else {
+      if(!alloc || (pagetable = (pde_t*)kalloc()) == 0)
+        return 0;
+      memset(pagetable, 0, PGSIZE);
+      *pte = PA2PTE(pagetable) | PTE_V;
+    }
+  }
+  //return L0 user page addr
+  return pagetable[PX(1, va)];
+}
+
+//return a pte of L1 kernel table
+pte_t *
+getL1pte(pagetable_t pagetable, uint64 va, int alloc)
+{
+  if(va >= MAXVA)
+    panic("get L1 pte");
+
+  for(int level = 2; level > 1; level--) {
+    pte_t *pte = &pagetable[PX(level, va)];
+    if(*pte & PTE_V) {
+      pagetable = (pagetable_t)PTE2PA(*pte);
+    } else {
+      if(!alloc || (pagetable = (pde_t*)kalloc()) == 0)
+        return 0;
+      memset(pagetable, 0, PGSIZE);
+      *pte = PA2PTE(pagetable) | PTE_V;
+    }
+  }
+  return &pagetable[PX(1, va)];
+}
+
+
+//merge user table and kernel table
+void mergetable(pagetable_t k_pagetable,pagetable_t u_pagetable){
+    uint64 uva;
+    uint64 kva;
+    for(uva=0;uva<MAX_UESE;uva=uva+PGSIZE){
+      uint64 va=PGROUNDDOWN(uva);
+      pte_t upte;
+      //get L0 user table addr
+      if((upte=walk_new(u_pagetable,va,1))==0)
+         panic("mergetable");
+      //update the content of L1 kernel table to merge kernel table and user table
+      pte_t *kpte;
+      if((kpte=getL1pte(k_pagetable,va,1))==0)
+         panic("mergetable");
+      if(*kpte & PTE_V)
+         panic("remap");
+      *kpte=upte;
+    }
 }
