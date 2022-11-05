@@ -187,6 +187,11 @@ void            freekerneltable(pagetable_t pagetable);
 pte_t           walk_new(pagetable_t pagetable, uint64 va, int alloc);
 pte_t *         getL1pte(pagetable_t pagetable, uint64 va, int alloc);
 void            mergetable(pagetable_t k_pagetable,pagetable_t u_pagetable);
+
+// vmcopyin.c
+int             copyin_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len);
+int             copyinstr_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max);
+
 // plic.c
 void            plicinit(void);
 void            plicinithart(void);
@@ -209,6 +214,7 @@ void            statsinc(void);
 
 // sprintf.c
 int             snprintf(char*, int, char*, ...);
+
 
 #ifdef LAB_NET
 // pci.c

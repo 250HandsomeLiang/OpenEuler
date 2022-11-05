@@ -14,8 +14,12 @@ fetchaddr(uint64 addr, uint64 *ip)
   struct proc *p = myproc();
   if(addr >= p->sz || addr+sizeof(uint64) > p->sz)
     return -1;
-  if(copyin(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0)
+  w_sstatus(r_sstatus() | SSTATUS_SUM);
+  if(copyin_new(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0){
+    w_sstatus(r_sstatus() & ~SSTATUS_SUM);
     return -1;
+  }
+
   return 0;
 }
 
@@ -25,7 +29,9 @@ int
 fetchstr(uint64 addr, char *buf, int max)
 {
   struct proc *p = myproc();
-  int err = copyinstr(p->pagetable, buf, addr, max);
+  w_sstatus(r_sstatus() | SSTATUS_SUM);
+  int err = copyinstr_new(p->pagetable, buf, addr, max);
+  w_sstatus(r_sstatus() & ~SSTATUS_SUM);
   if(err < 0)
     return err;
   return strlen(buf);

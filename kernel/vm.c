@@ -608,19 +608,15 @@ getL1pte(pagetable_t pagetable, uint64 va, int alloc)
 //merge user table and kernel table
 void mergetable(pagetable_t k_pagetable,pagetable_t u_pagetable){
     uint64 uva;
-    uint64 kva;
     for(uva=0;uva<MAX_UESE;uva=uva+PGSIZE){
       uint64 va=PGROUNDDOWN(uva);
       pte_t upte;
       //get L0 user table addr
-      if((upte=walk_new(u_pagetable,va,1))==0)
-         panic("mergetable");
+      upte=walk_new(u_pagetable,va,1);
       //update the content of L1 kernel table to merge kernel table and user table
       pte_t *kpte;
       if((kpte=getL1pte(k_pagetable,va,1))==0)
          panic("mergetable");
-      if(*kpte & PTE_V)
-         panic("remap");
-      *kpte=upte;
+      *kpte=upte&(~PTE_U);
     }
 }

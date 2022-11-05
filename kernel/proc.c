@@ -224,10 +224,11 @@ userinit(void)
 
   p = allocproc();
   initproc = p;
-  
+  mergetable(p->k_pagetable,p->pagetable);
   // allocate one user page and copy init's instructions
   // and data into it.
   uvminit(p->pagetable, initcode, sizeof(initcode));
+  mergetable(p->k_pagetable,p->pagetable);
   p->sz = PGSIZE;
 
   // prepare for the very first "return" from kernel to user.
@@ -253,10 +254,13 @@ growproc(int n)
   sz = p->sz;
   if(n > 0){
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
+      mergetable(p->k_pagetable,p->pagetable);
       return -1;
     }
+    mergetable(p->k_pagetable,p->pagetable);
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
+    mergetable(p->k_pagetable,p->pagetable);
   }
   p->sz = sz;
   return 0;
@@ -275,13 +279,20 @@ fork(void)
   if((np = allocproc()) == 0){
     return -1;
   }
+  //merge table
+  mergetable(np->k_pagetable,np->pagetable);
 
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
+    //merge table
+    mergetable(np->k_pagetable,np->pagetable);
     freeproc(np);
     release(&np->lock);
     return -1;
   }
+  //merge table
+  mergetable(np->k_pagetable,np->pagetable);
+  
   np->sz = p->sz;
 
   np->parent = p;
@@ -303,7 +314,7 @@ fork(void)
   pid = np->pid;
 
   np->state = RUNNABLE;
-
+  
   release(&np->lock);
 
   return pid;
@@ -675,7 +686,11 @@ either_copyin(void *dst, int user_src, uint64 src, uint64 len)
 {
   struct proc *p = myproc();
   if(user_src){
-    return copyin(p->pagetable, dst, src, len);
+    int res=0;
+    w_sstatus(r_sstatus() | SSTATUS_SUM);
+    res=copyin_new(p->pagetable, dst, src, len);
+    w_sstatus(r_sstatus() & ~SSTATUS_SUM);
+    return res;
   } else {
     memmove(dst, (char*)src, len);
     return 0;

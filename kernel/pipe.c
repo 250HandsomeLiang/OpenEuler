@@ -9,6 +9,7 @@
 #include "file.h"
 
 #define PIPESIZE 512
+#define SSTATUS_SIE (1L << 1)  // Supervisor Interrupt Enable
 
 struct pipe {
   struct spinlock lock;
@@ -90,8 +91,13 @@ pipewrite(struct pipe *pi, uint64 addr, int n)
       wakeup(&pi->nread);
       sleep(&pi->nwrite, &pi->lock);
     }
-    if(copyin(pr->pagetable, &ch, addr + i, 1) == -1)
+    //enable kernel to operate user page
+    w_sstatus(r_sstatus() | SSTATUS_SUM);
+    if(copyin_new(pr->pagetable, &ch, addr + i, 1) == -1){
+      //disable kernel to operate user page
+      w_sstatus(r_sstatus() & ~SSTATUS_SUM);
       break;
+    }  
     pi->data[pi->nwrite++ % PIPESIZE] = ch;
   }
   wakeup(&pi->nread);
