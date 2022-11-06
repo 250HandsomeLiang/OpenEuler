@@ -160,8 +160,12 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_V)
+    if(*pte & PTE_V){
+      printf("pagetable %p va %p size %d pa %p perm  %d \n",pagetable,(uint64*)va,size,(uint64*)pa,perm);
+      vmprint(pagetable);
       panic("remap");
+    }
+
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
@@ -230,6 +234,7 @@ uvminit(pagetable_t pagetable, uchar *src, uint sz)
 
 // Allocate PTEs and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
+//grow or shrink user memory
 uint64
 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {
@@ -531,9 +536,15 @@ kvminit_new()
 // free kernel page-table pages.
 void
 freekerneltable(pagetable_t pagetable)
-{
+{  
+
+    //judge  if the page is already free
+    if((pagetable[1]==0x0101010101010101)&&(pagetable[2]==0x0101010101010101)){
+      return ;
+    } 
   // there are 2^9 = 512 PTEs in a page table.
   for(int i = 0; i < 512; i++){
+
     pte_t pte = pagetable[i];
     if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
       //free L2,L1 table 
@@ -562,7 +573,7 @@ freekerneltable(pagetable_t pagetable)
 //   12..20 -- 9 bits of level-0 index.
 //    0..11 -- 12 bits of byte offset within the page.
 //return L0 pagetable addr
-pte_t 
+pte_t* 
 walk_new(pagetable_t pagetable, uint64 va, int alloc)
 {
   if(va >= MAX_UESE)
@@ -580,7 +591,7 @@ walk_new(pagetable_t pagetable, uint64 va, int alloc)
     }
   }
   //return L0 user page addr
-  return pagetable[PX(1, va)];
+  return &pagetable[PX(1, va)];
 }
 
 //return a pte of L1 kernel table
@@ -606,17 +617,47 @@ getL1pte(pagetable_t pagetable, uint64 va, int alloc)
 
 
 //merge user table and kernel table
-void mergetable(pagetable_t k_pagetable,pagetable_t u_pagetable){
+void mergetable(pagetable_t k_pagetable,pagetable_t u_pagetable,uint64 sz){
     uint64 uva;
-    for(uva=0;uva<MAX_UESE;uva=uva+PGSIZE){
+    if(sz>MAX_UESE){
+      panic("user addr overflow");
+    }
+    for(uva=0;uva<sz;uva+=PGSIZE){
       uint64 va=PGROUNDDOWN(uva);
-      pte_t upte;
+      pte_t *upte;
       //get L0 user table addr
-      upte=walk_new(u_pagetable,va,1);
+      upte=walk_new(u_pagetable,va,0);
+      if (upte==0){
+        continue;
+      }
+      //invalid mapping
+      if((*upte&PTE_V)==0){
+        continue;  
+      }
       //update the content of L1 kernel table to merge kernel table and user table
       pte_t *kpte;
       if((kpte=getL1pte(k_pagetable,va,1))==0)
          panic("mergetable");
-      *kpte=upte&(~PTE_U);
+      *kpte=(*upte)&(~PTE_U);
     }
+}
+
+void printkernel(pagetable_t k_pagetable,uint64 l2,uint64 l1,uint64 l0){
+  printf("kernel page table %p\n",k_pagetable);
+  for(int level = 2; level > 0; level--) {
+    pte_t *pte;
+    if(level==2){
+      pte = &k_pagetable[l2];
+    }else{
+      pte = &k_pagetable[l1];
+    }
+    if(*pte & PTE_V) {
+      k_pagetable = (pagetable_t)PTE2PA(*pte);
+    } else {
+      panic("print kernel");
+    }
+  }
+  //print L0 user page addr
+  uint64 child = PTE2PA(k_pagetable[l0]);
+  printf("%d user page pte: %p pa %p\n",l0,(pte_t *)k_pagetable[l0],(pagetable_t *)child);
 }

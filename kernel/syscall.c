@@ -19,7 +19,7 @@ fetchaddr(uint64 addr, uint64 *ip)
     w_sstatus(r_sstatus() & ~SSTATUS_SUM);
     return -1;
   }
-
+  w_sstatus(r_sstatus() & ~SSTATUS_SUM);
   return 0;
 }
 

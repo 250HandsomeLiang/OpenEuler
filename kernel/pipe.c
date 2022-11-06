@@ -97,7 +97,8 @@ pipewrite(struct pipe *pi, uint64 addr, int n)
       //disable kernel to operate user page
       w_sstatus(r_sstatus() & ~SSTATUS_SUM);
       break;
-    }  
+    }
+    w_sstatus(r_sstatus() & ~SSTATUS_SUM);  
     pi->data[pi->nwrite++ % PIPESIZE] = ch;
   }
   wakeup(&pi->nread);

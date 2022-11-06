@@ -224,13 +224,17 @@ userinit(void)
 
   p = allocproc();
   initproc = p;
-  mergetable(p->k_pagetable,p->pagetable);
   // allocate one user page and copy init's instructions
   // and data into it.
   uvminit(p->pagetable, initcode, sizeof(initcode));
-  mergetable(p->k_pagetable,p->pagetable);
-  p->sz = PGSIZE;
 
+  p->sz = PGSIZE;
+  mergetable(p->k_pagetable,p->pagetable,p->sz);
+  printf("****************************************************************\n");
+  printf("*****user page*****\n");
+  printkernel(p->pagetable,0,0,0);
+  printf("*****kernel page*****\n");
+  printkernel(p->k_pagetable,0,0,0);
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
   p->trapframe->sp = PGSIZE;  // user stack pointer
@@ -254,13 +258,13 @@ growproc(int n)
   sz = p->sz;
   if(n > 0){
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
-      mergetable(p->k_pagetable,p->pagetable);
+      mergetable(p->k_pagetable,p->pagetable,sz);
       return -1;
     }
-    mergetable(p->k_pagetable,p->pagetable);
+    mergetable(p->k_pagetable,p->pagetable,sz);
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
-    mergetable(p->k_pagetable,p->pagetable);
+    mergetable(p->k_pagetable,p->pagetable,sz);
   }
   p->sz = sz;
   return 0;
@@ -279,22 +283,19 @@ fork(void)
   if((np = allocproc()) == 0){
     return -1;
   }
-  //merge table
-  mergetable(np->k_pagetable,np->pagetable);
-
+  
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
-    //merge table
-    mergetable(np->k_pagetable,np->pagetable);
+    mergetable(np->k_pagetable,np->pagetable,p->sz);
     freeproc(np);
     release(&np->lock);
     return -1;
   }
-  //merge table
-  mergetable(np->k_pagetable,np->pagetable);
   
   np->sz = p->sz;
-
+  //merge table
+  mergetable(np->k_pagetable,np->pagetable,np->sz);
+  printf("user %p kernel %p\n",np->pagetable,np->k_pagetable); 
   np->parent = p;
 
   // copy saved user registers.
