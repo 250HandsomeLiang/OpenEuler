@@ -148,7 +148,7 @@ freeproc(struct proc *p)
     proc_freepagetable(p->pagetable, p->sz);
   //clear kernel page
   if(p->k_pagetable)
-    freekerneltable(p->k_pagetable);
+    freekernelpage(p->k_pagetable);
   p->k_pagetable=0;
   p->pagetable = 0;
   p->sz = 0;
@@ -229,12 +229,7 @@ userinit(void)
   uvminit(p->pagetable, initcode, sizeof(initcode));
 
   p->sz = PGSIZE;
-  mergetable(p->k_pagetable,p->pagetable,p->sz);
-  printf("****************************************************************\n");
-  printf("*****user page*****\n");
-  printkernel(p->pagetable,0,0,0);
-  printf("*****kernel page*****\n");
-  printkernel(p->k_pagetable,0,0,0);
+  mergetable(p->k_pagetable,p->pagetable,p->sz,0);
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
   p->trapframe->sp = PGSIZE;  // user stack pointer
@@ -254,17 +249,17 @@ growproc(int n)
 {
   uint sz;
   struct proc *p = myproc();
-
-  sz = p->sz;
+  uint64 start;
+  start=sz = p->sz;
   if(n > 0){
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
-      mergetable(p->k_pagetable,p->pagetable,sz);
+    mergetable(p->k_pagetable,p->pagetable,sz,start);
       return -1;
     }
-    mergetable(p->k_pagetable,p->pagetable,sz);
+    mergetable(p->k_pagetable,p->pagetable,sz,start);
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
-    mergetable(p->k_pagetable,p->pagetable,sz);
+    mergetable(p->k_pagetable,p->pagetable,sz,0);
   }
   p->sz = sz;
   return 0;
@@ -286,7 +281,7 @@ fork(void)
   
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
-    mergetable(np->k_pagetable,np->pagetable,p->sz);
+    mergetable(np->k_pagetable,np->pagetable,p->sz,0);
     freeproc(np);
     release(&np->lock);
     return -1;
@@ -294,8 +289,7 @@ fork(void)
   
   np->sz = p->sz;
   //merge table
-  mergetable(np->k_pagetable,np->pagetable,np->sz);
-  printf("user %p kernel %p\n",np->pagetable,np->k_pagetable); 
+  mergetable(np->k_pagetable,np->pagetable,np->sz,0);
   np->parent = p;
 
   // copy saved user registers.

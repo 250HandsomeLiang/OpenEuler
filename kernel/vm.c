@@ -100,7 +100,7 @@ walkaddr(pagetable_t pagetable, uint64 va)
   pte_t *pte;
   uint64 pa;
 
-  if(va >= MAXVA)
+  if(va >= MAXUSER)
     return 0;
 
   pte = walk(pagetable, va, 0);
@@ -120,7 +120,7 @@ walkaddr(pagetable_t pagetable, uint64 va)
 //va->pa
 void
 kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
-{
+{ 
   if(mappages(kernel_pagetable, va, sz, pa, perm) != 0)
     panic("kvmmap");
 }
@@ -161,8 +161,6 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
     if(*pte & PTE_V){
-      printf("pagetable %p va %p size %d pa %p perm  %d \n",pagetable,(uint64*)va,size,(uint64*)pa,perm);
-      vmprint(pagetable);
       panic("remap");
     }
 
@@ -499,7 +497,7 @@ void dfsPage(pagetable_t pagetable,int count){
 // create pte for each kernel table
 void
 kvmmap_new(uint64 va, uint64 pa, uint64 sz, int perm,pagetable_t k_pagetable)
-{
+{ 
   if(mappages(k_pagetable, va, sz, pa, perm) != 0)
     panic("kvmmap_new");
 }
@@ -537,14 +535,53 @@ kvminit_new()
 void
 freekerneltable(pagetable_t pagetable)
 {  
-
-    //judge  if the page is already free
-    if((pagetable[1]==0x0101010101010101)&&(pagetable[2]==0x0101010101010101)){
-      return ;
-    } 
   // there are 2^9 = 512 PTEs in a page table.
   for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
+      //free L2,L1 table 
+      // this PTE points to a lower-level page table.
+      uint64 child = PTE2PA(pte);
+      freekerneltable((pagetable_t)child);
+      pagetable[i] = 0;  
+    } else if(pte & PTE_V){
+      //free L0 table
+      pagetable[i]=0;
+    }
+  }
+  kfree((void*)pagetable);
+}
 
+//free kernel page,L2 0 ,L1 96~511,L0:0~511
+void  freeremainpage(pagetable_t pagetable){
+  // there are 96 L1 PTEs and 512 L0 PTES in a page table.
+  for(int i = 96; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
+      //free L1 table 
+      // this PTE points to a lower-level page table.
+      uint64 child = PTE2PA(pte);
+      freekerneltable((pagetable_t)child);
+      pagetable[i] = 0;  
+    } else if(pte & PTE_V){
+      //free L0 table
+      pagetable[i]=0;
+    }
+  }
+  kfree((void*)pagetable);
+}
+
+//free kernel table but don't free user page,just free kernel page
+void freekernelpage(pagetable_t pagetable){
+    // there are 2^9 = 512 PTEs in a page table.
+  pte_t pte0=pagetable[0];
+  if((pte0 & PTE_V) && (pte0 & (PTE_R|PTE_W|PTE_X)) == 0){
+    uint64 child0=PTE2PA(pte0);
+    freeremainpage((pagetable_t)child0);
+    pagetable[0]=0;
+  }
+
+  for(int i = 1; i < 512; i++){
     pte_t pte = pagetable[i];
     if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
       //free L2,L1 table 
@@ -617,12 +654,12 @@ getL1pte(pagetable_t pagetable, uint64 va, int alloc)
 
 
 //merge user table and kernel table
-void mergetable(pagetable_t k_pagetable,pagetable_t u_pagetable,uint64 sz){
+void mergetable(pagetable_t k_pagetable,pagetable_t u_pagetable,uint64 sz,uint64 start){
     uint64 uva;
     if(sz>MAX_UESE){
       panic("user addr overflow");
     }
-    for(uva=0;uva<sz;uva+=PGSIZE){
+    for(uva=start;uva<sz;uva+=PGSIZE){
       uint64 va=PGROUNDDOWN(uva);
       pte_t *upte;
       //get L0 user table addr
@@ -659,5 +696,5 @@ void printkernel(pagetable_t k_pagetable,uint64 l2,uint64 l1,uint64 l0){
   }
   //print L0 user page addr
   uint64 child = PTE2PA(k_pagetable[l0]);
-  printf("%d user page pte: %p pa %p\n",l0,(pte_t *)k_pagetable[l0],(pagetable_t *)child);
+  printf("%d kernel page pte: %p pa %p\n",l0,(pte_t *)k_pagetable[l0],(pagetable_t *)child);
 }

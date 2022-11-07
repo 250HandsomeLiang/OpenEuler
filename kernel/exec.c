@@ -112,7 +112,7 @@ exec(char *path, char **argv)
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
   p->sz = sz;
-  mergetable(p->k_pagetable,p->pagetable,p->sz);
+  mergetable(p->k_pagetable,p->pagetable,p->sz,0);
   p->trapframe->epc = elf.entry;  // initial program counter = main
   p->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);

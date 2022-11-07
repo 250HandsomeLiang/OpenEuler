@@ -953,7 +953,6 @@ void
 reparent2(char *s)
 {
   for(int i = 0; i < 800; i++){
-    printf("*************%d****************\n",i);
     int pid1 = fork();
     if(pid1 < 0){
       printf("fork failed\n");
@@ -2509,7 +2508,6 @@ execout(char *s)
           break;
         *(char*)(a + 4096 - 1) = 1;
       }
-      printf("exec wait in while\n");
       // free a few pages, in order to let exec() make some
       // progress.
       for(int i = 0; i < avail; i++)
@@ -2520,9 +2518,7 @@ execout(char *s)
       exec("echo", args);
       exit(0);
     } else {
-      printf("exec wait in main\n");
       wait((int*)0);
-      printf("exec wait in main over\n");
     }
   }
 
@@ -2608,7 +2604,6 @@ run(void f(char *), char *s) {
     exit(1);
   }
   if(pid == 0) {
-    printf("hello world\n");
     f(s);
     exit(0);
   } else {

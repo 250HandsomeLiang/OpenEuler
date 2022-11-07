@@ -184,9 +184,11 @@ int             test_pagetable();
 void            vmprint(pagetable_t pagetable);            
 void            dfsPage(pagetable_t pagetable,int count);
 void            freekerneltable(pagetable_t pagetable);
+void            freeremainpage(pagetable_t pagetable);
+void            freekernelpage(pagetable_t pagetable);
 pte_t *         walk_new(pagetable_t pagetable, uint64 va, int alloc);
 pte_t *         getL1pte(pagetable_t pagetable, uint64 va, int alloc);
-void            mergetable(pagetable_t k_pagetable,pagetable_t u_pagetable,uint64 sz);
+void            mergetable(pagetable_t k_pagetable,pagetable_t u_pagetable,uint64 sz,uint64 start);
 void            printkernel(pagetable_t k_pagetable,uint64 l2,uint64 l1,uint64 l0);
 // vmcopyin.c
 int             copyin_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len);
